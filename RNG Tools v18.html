@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RNG Conversion v18</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; background:#f5f6fa; text-align:center; padding:30px; }
+  h2 { color:#2f3640; }
+  .tabs { margin-bottom:30px; }
+  .tab-btn { padding:10px 20px; border:none; border-radius:6px; background:#dcdde1; margin:0 10px; cursor:pointer; font-size:15px; }
+  .tab-btn.active { background:#273c75; color:#fff; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+  .upload-box { background:#fff; border:2px dashed #718093; padding:40px; width:560px; margin:0 auto; border-radius:12px; }
+  input[type="file"],
+  input[type="text"],
+  input[type="number"] { margin:10px 0; padding:6px 10px; border-radius:6px; border:1px solid #dcdde1; width:100%; box-sizing:border-box; }
+  button { background:#273c75; color:#fff; border:none; padding:10px 25px; border-radius:8px; cursor:pointer; font-size:15px; margin:5px; }
+  button:hover { background:#40739e; }
+  .note { font-size:12px; color:#666; margin-top:8px; line-height:1.5; text-align:left; max-width:520px; margin-left:auto; margin-right:auto; }
+  .note strong { color:#2f3640; }
+  textarea { width:100%; border-radius:8px; border:1px solid #dcdde1; padding:8px; font-family: Consolas, "Courier New", monospace; font-size:13px; box-sizing:border-box; }
+  .small-label { font-size:13px; text-align:left; margin:10px 0 4px; }
+  .status-text { font-size:12px; color:#2563eb; font-weight:600; text-align:left; max-width:520px; margin:8px auto 0; }
+/* 讓 upload-box 裡面的文字靠左（包含 Step 1 / Step 2 / Step 3） */
+.upload-box p { text-align: left; }
+</style>
+</head>
+<body>
+
+<h2>RNG Conversion Tools 轉換小工具</h2>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('excelTab')">Comparison_Excel</button>
+  <button class="tab-btn" onclick="showTab('txtTab')">Red_TXT</button>
+  <button class="tab-btn" onclick="showTab('lianTab')">ARA</button>
+  <button class="tab-btn" onclick="showTab('tgTab')">TG_DATE</button>
+  <button class="tab-btn" onclick="showTab('tgGroupTab')">TG_Grouping</button>
+  <button class="tab-btn" onclick="showTab('allTab')">Download_All </button>
+</div>
+
+<!-- Comparison_Excel (與 v17 相同) -->
+<div id="excelTab" class="tab-content active">
+  <div class="upload-box">
+    <p>Upload all Web & Bin Excel files (.xlsx) and merge them into a comparison file.</p>
+    <p>上傳web&bin全部的Excel檔案 (.xlsx)，合併成RNGsystem比對用的Excel檔</p>
+    <input type="file" id="excelInput" accept=".xlsx" multiple>
+    <br>
+    <button id="processExcelBtn">Extract & Download (Merge)</button>
+    <div class="note">
+      <strong>說明（合併輸出，不含來源檔名）</strong><br>
+      ・從多個 Excel 檔案中，自動偵測常見的 4D 格式（包含 IN/OUT 區塊、多組 Num/Big/Small 標題等），只擷取有效的 Number / Big / Small 資料。<br>
+      ・所有檔案與所有工作表的資料，會合併成一張新的工作表「Merged」。<br>
+      ・空白的 Big / Small 會視為 0，Number 自動補滿 4 位數（例如：<code>123</code> → <code>0123</code>）。<br>
+      ・輸出檔案名稱固定為：<code>Comparison_Excel_Merged.xlsx</code><br>
+      <br>
+      <strong>Description (Merged output without source file name)</strong><br>
+      ・Automatically detects common 4D result formats in multiple Excel files (including IN/OUT blocks and multiple Num/Big/Small headers) and extracts only valid Number / Big / Small data.<br>
+      ・All data from all sheets will be merged into one sheet named <code>Merged</code>.<br>
+      ・Empty Big / Small cells are treated as 0, and Number is zero-padded to 4 digits (e.g. <code>123</code> → <code>0123</code>).<br>
+      ・Output file name is always: <code>Comparison_Excel_Merged.xlsx</code><br>
+      <br>
+      <strong>範例 / Example</strong><br>
+      原始資料（Excel 任一工作表）：<br>
+      ・Number：<code>789</code>，Big：<code>5</code>，Small：<code>0</code><br>
+      合併後輸出列：<br>
+      ・number：<code>0789</code>，big：<code>5</code>，small：<code>0</code>
+    </div>
+    <br><br>
+    <button id="processExcelWithSourceBtn">Extract & Download (add Source)</button>
+    <div class="note">
+      <strong>說明（合併輸出，包含來源檔名 Source）</strong><br>
+      ・功能與上方「Extract & Download (Merge)」相同，但會多一欄 <code>source</code>，記錄每一筆資料來自哪一個 Excel 檔案。<br>
+      ・方便回溯原始檔案來源，例如針對特定檔案重新檢查或分組統計。<br>
+      ・輸出檔案名稱固定為：<code>Comparison_Excel_Merged_WithSource.xlsx</code><br>
+      <br>
+      <strong>Description (Merged output with source file name)</strong><br>
+      ・Same behavior as “Extract & Download (Merge)”, but adds an extra column named <code>source</code> containing the original Excel file name for each row.<br>
+      ・Useful for tracing back where each record came from or grouping by source file later.<br>
+      ・Output file name is always: <code>Comparison_Excel_Merged_WithSource.xlsx</code><br>
+      <br>
+      <strong>範例 / Example</strong><br>
+      ・假設你上傳了兩個檔案：<code>A.xlsx</code>、<code>B.xlsx</code><br>
+      ・輸出資料列可能會是：<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<code>0123　5　2　A.xlsx</code><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<code>4567　0　1　B.xlsx</code>
+    </div>
+  </div>
+</div>
+
+<!-- Red_TXT (與 v17 相同) -->
+<div id="txtTab" class="tab-content">
+  <div class="upload-box">
+    <p>Upload a .txt files (Top 300 or more) to convert “Red noumber”</p>
+    <p>上傳 .txt 檔案（前 300 個或更多），轉換成RNGsystem的紅字上傳格式。</p>
+    <input type="file" id="txtInput" accept=".txt"><br>
+    <button onclick="processAndDownloadTXT()">Extract & Download</button>
+    <div class="note">
+      <strong>說明（只保留每行開頭的 4 位數字）</strong><br>
+      ・從 TXT 每一行的開頭擷取「最多 4 位數字」，不足 4 位會自動在前面補 0。<br>
+      ・如果該行不是以數字開頭，則直接略過那一行。<br>
+      ・所有擷取到的號碼會一行一個號碼輸出到新的 TXT 檔。<br>
+      ・輸出檔案名稱固定為：<code>Red.txt</code><br>
+      <br>
+      <strong>Description (Keep only first 4 leading digits of each line)</strong><br>
+      ・For each line in the TXT file, this tool extracts up to the first 4 digits from the beginning of the line and pads it to 4 digits if needed.<br>
+      ・Lines that do not start with digits are ignored.<br>
+      ・All extracted numbers are written to a new TXT file, one number per line.<br>
+      ・Output file name is always: <code>Red.txt</code><br>
+      <br>
+      <strong>範例 / Example</strong><br>
+      原始 TXT 內容：<br>
+      ・<code>9 abcdef</code><br>
+      ・<code>123 xyz</code><br>
+      ・<code>56789 something</code><br>
+      ・<code>no number here</code><br>
+      轉換後輸出：<br>
+      ・<code>0009</code><br>
+      ・<code>0123</code><br>
+      ・<code>5678</code><br>
+      （最後一行沒有數字開頭，所以會被忽略）
+    </div>
+  </div>
+</div>
+
+<!-- ARA (與 v17 相同) -->
+<div id="lianTab" class="tab-content">
+  <div class="upload-box">
+    <p>Upload a .ara file and convert the format "*1|N" to "*1␣␣|Y".</p>
+    <p>上傳一個 .ara 文件，將格式 "*1|N" 轉換為 "*1␣␣|Y" </p>
+    <input type="file" id="lianInput" accept=".ara"><br>
+    <button onclick="processAndDownloadARA()">Extract & Download</button>
+    <div class="note">
+      <strong>說明（批次文字取代）</strong><br>
+      ・讀取整個 <code>.ara</code> 檔案，將所有出現的字串 <code>*1|N</code> 自動替換成 <code>*1  |Y</code>（<code>1</code> 後面有兩個空格）。<br>
+      ・其他內容完全不變，只做這一種文字替換。<br>
+      ・輸出檔案名稱固定為：<code>ARA_converted.ara</code><br>
+      <br>
+      <strong>Description (Batch string replacement)</strong><br>
+      ・Reads the entire <code>.ara</code> file and replaces every occurrence of <code>*1|N</code> with <code>*1  |Y</code> (two spaces after <code>1</code>).<br>
+      ・All other content stays exactly the same; only this pattern is changed.<br>
+      ・Output file name is always: <code>ARA_converted.ara</code><br>
+      <br>
+      <strong>範例 / Example</strong><br>
+      原始內容：<br>
+      ・<code>xxxx*1|Nyyyy</code><br>
+      ・<code>zzzz*1|N</code><br>
+      轉換後：<br>
+      ・<code>xxxx*1  |Yyyyy</code><br>
+      ・<code>zzzz*1  |Y</code>
+    </div>
+  </div>
+</div>
+
+<!-- TG_DATE（與 v17 相同） -->
+<div id="tgTab" class="tab-content">
+  <div class="upload-box">
+    <p>Upload a TG.txt file and convert the format "Day TGID" to "TGID Day".</p>
+    <p>上傳一個 TG.txt 文件，並將格式「星期 TGID」轉換為「TGID 星期」。</p>
+    <input type="file" id="tgInput" accept=".txt"><br>
+    <button onclick="processTGDate()">Convert & Download</button>
+    <button onclick="processTGDateBack()">Convert Back & Download</button>
+    <div class="note">
+      <strong>說明（第 1、2 欄位對調，可正向／反向互換）</strong><br>
+      ・每一行會先用空白或 Tab 切成多個欄位（field）。<br>
+      ・如果該行欄位數少於 2 個，就不動那一行，原樣輸出。<br>
+      ・欄位數 ≥ 2 時，「Convert & Download」會將「第 2 欄」移到最前面，「第 1 欄」變成第二個，其餘欄位依序保留不變。<br>
+      ・同樣的邏輯再執行一次（不論用哪一個按鈕），就會回到原來順序，因此兩個按鈕都可以視為「相反互換」。<br>
+      ・空白行會保留為空白行。<br>
+      ・輸出檔案名稱：<code>TG_DATE.txt</code> 或 <code>TG_DATE_Back.txt</code><br>
+      <br>
+      <strong>Description (Swap 1st and 2nd fields, reversible)</strong><br>
+      ・Each line is split into fields by spaces or tabs.<br>
+      ・If a line has fewer than 2 fields, the line is kept as-is in the output.<br>
+      ・When there are 2 or more fields, “Convert & Download” moves the 2nd field to the front, the 1st field becomes the second, and all remaining fields keep their original order.<br>
+      ・Running the swap again will revert back to the original order (the swap is its own inverse).<br>
+      ・Blank lines are preserved as blank lines.<br>
+      ・Output file name: <code>TG_DATE.txt</code> or <code>TG_DATE_Back.txt</code><br>
+      <br>
+      <strong>範例 / Example</strong><br>
+      原始一行：<br>
+      ・<code>3K010088 3 8580 1643 1563 1918 -1</code><br>
+      轉換後：<br>
+      ・<code>3 3K010088 8580 1643 1563 1918 -1</code><br>
+      再次執行交換：<br>
+      ・<code>3K010088 3 8580 1643 1563 1918 -1</code><br>
+      <br>
+      另一個例子：<br>
+      原始：<br>
+      ・<code>ABCD 01 XYZ 999</code><br>
+      轉換後：<br>
+      ・<code>01 ABCD XYZ 999</code><br>
+      再轉一次：<br>
+      ・<code>ABCD 01 XYZ 999</code>
+    </div>
+  </div>
+</div>
+
+<!-- TG_Grouping（新分頁：用 TG 分組工具的邏輯，比照 RNG UI） -->
+<div id="tgGroupTab" class="tab-content">
+  <div class="upload-box">
+    <p>Upload a TG.txt file and group it randomly.</p>
+    <p>上傳一個TG TXT文件，並隨機分組。</p>
+    <p><strong>Step 1：</strong>Upload TG file (txt) / 上傳 TG 檔</p>
+    <input id="tgGroupFile" type="file" accept=".txt">
+
+    <p><strong>Step 2：</strong>Group size range (e.g. 4-10) / 設定分組範圍</p>
+    <input id="tgGroupRange" type="text" placeholder="4-10" value="4-10">
+
+    <p><strong>Step 3：</strong>Groups to output / 設定要輸出的組數</p>
+    <input id="tgGroupMax" type="number" min="1" placeholder="留空 = 全部 / Leave empty = All">
+
+    <div>
+      <button onclick="runTGGrouping()">Generate / 生成結果</button>
+      <button onclick="copyTGGroupingOutput()">Copy / 複製</button>
+      <button onclick="downloadTGGroupingOutput()">Download / 下載</button>
+    </div>
+
+    <div id="tgGroupStatus" class="status-text"></div>
+
+    <div class="small-label">Output / 輸出結果</div>
+    <textarea id="tgGroupOutput" rows="8" placeholder="Grouped result will appear here / 分組後的結果會顯示在這裡"></textarea>
+
+    <div class="small-label">Error / 錯誤行（<span id="tgGroupBadCount">0</span>）</div>
+    <textarea id="tgGroupBad" rows="6" placeholder="Error lines will be listed here / 無法解析或格式不符的行會列在這裡"></textarea>
+    <div>
+      <button onclick="copyTGGroupingBad()">Copy Errors / 複製錯誤行</button>
+      <button onclick="downloadTGGroupingBad()">Download Errors / 下載錯誤行</button>
+    </div>
+
+    <div class="note">
+      <strong>說明（TG 分組邏輯）</strong><br>
+      ・步驟：上傳 TG TXT → 設定「每組行數範圍」（例如 7-10）→ 設定要輸出的組數（可留空）→ 按 Generate。<br>
+      ・程式會從檔案最上方開始，依序往下切分：每一組先在範圍內隨機決定一個行數，再讀取對應行數。<br>
+      ・同一組內所有行共用第一行的前綴（prefix），依尾碼標記（marker）分組，將同一 marker 的號碼集中列出，最後只寫一次 marker。<br>
+      ・無法解析的行、格式不符的行都會丟到 Error 區塊，方便人工檢查。<br>
+      <br>
+      <strong>Description (TG grouping rules)</strong><br>
+      ・Steps: upload TG TXT → set group size range (e.g. 7-10) → set how many groups to output (optional) → click Generate.<br>
+      ・The tool walks from top to bottom: for each group it randomly picks a size within the range and takes that many lines in order.<br>
+      ・Within each group, all lines share the first line’s prefix; codes are grouped by the trailing marker, listing codes in original order and writing each marker once at the end.<br>
+      ・Any unparseable or malformed lines are collected into the Error box for further manual inspection.
+    </div>
+  </div>
+</div>
+
+<!-- Download_All Builder -->
+<div id="allTab" class="tab-content">
+  <div class="upload-box">
+    <p>Upload ARA / TG / KEYIN files and redfont file to build a "download_all.txt"</p>
+    <p>上傳全部ARA/TG/KEYIN/紅字的檔案，並產生RNG比對用的"download_all.txt "</p>
+
+    <p><strong>Step 1：</strong>Upload all ARA / TG / KEYIN files (no redfont here)</p>
+    <input type="file" id="allMainInput" accept=".txt" multiple><br>
+
+    <p><strong>Step 2：</strong>Upload redfont file (single file)</p>
+    <input type="file" id="redfontInput" accept=".txt"><br><br>
+
+    <button id="buildAllBtn">Build & Download download_all.txt</button>
+    <div class="note">
+      <strong>說明（分開上傳主檔與紅字 → 產生 Download_All）</strong><br>
+      ・第一個上傳框請一次選取你之前下載好的 ARA / TG / KEYIN 檔案，例如：<br>
+      &nbsp;&nbsp;- <code>MM38_11G001_ARA.txt</code>（Web 或 Bin 的 ARA 檔）<br>
+      &nbsp;&nbsp;- <code>MM38_11GPX88_TG.txt</code><br>
+      &nbsp;&nbsp;- <code>MM38_11GPX88_KEY.txt</code><br>
+      ・第二個上傳框只放紅字檔（不限檔名，建議內文為「號碼 大 小」）。<br>
+      ・主檔會依檔名自動判斷類型：<br>
+      &nbsp;&nbsp;- 檔名包含 <code>_ARA</code> → <code>type:ara 檔名不含副檔名</code><br>
+      &nbsp;&nbsp;- 檔名包含 <code>_TG</code> → <code>type:tg 檔名不含副檔名</code><br>
+      &nbsp;&nbsp;- 檔名包含 <code>_KEY</code> → <code>type:keyin 檔名不含副檔名</code><br>
+      ・紅字檔不看檔名，只會被放進固定區塊：<code>type:redfont</code> / <code>endtype:redfont</code>。<br>
+      ・每個主檔區塊會輸出成：<br>
+      &nbsp;&nbsp;<code>type:ara 檔名</code><br>
+      &nbsp;&nbsp;<code>line:行數</code><br>
+      &nbsp;&nbsp;（原始內容，去掉最後多餘空白行）<br>
+      &nbsp;&nbsp;<code>endtype:ara 檔名</code><br>
+      ・區塊順序固定：所有 ARA → 所有 TG → 所有 KEYIN → 最後 redfont。<br>
+      <br>
+      <strong>Example (output snippet)</strong><br>
+      <code>type:ara MM38_11G001_ARA</code><br>
+      <code>line:2</code><br>
+      <code>6+6052+   1+  4+11G001*1|N</code><br>
+      <code>6+4311+    +  3+11G001*1|N</code><br>
+      <code>endtype:ara MM38_11G001_ARA</code><br>
+      <code>type:redfont</code><br>
+      <code>line:2</code><br>
+      <code>0015 10 20</code><br>
+      <code>0049 10 20</code><br>
+      <code>endtype:redfont</code>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 強制所有 TXT 下載使用 Windows CRLF */
+function downloadCRLF(filename, content) {
+  if (content == null) content = "";
+  const norm = content.replace(/\r\n/g, "\n");  // 全部先統一成 \n
+  const crlf = norm.replace(/\n/g, "\r\n");     // 再全部轉 CRLF
+  const blob = new Blob([crlf], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ===== Tabs ====
+function showTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+// ===== Utils =====
+const toNum = (v) => { const s=(v??"").toString().trim(); if(!s) return 0; const n=parseFloat(s); return isNaN(n)?0:n; };
+const rowText = (row) => (row||[]).map(x=>(x??"").toString()).join(" ").toLowerCase();
+function pad4(v){ const s=(v??"").toString().trim(); const d=s.replace(/\D/g,""); if(!d) return ""; return d.length<=4?d.padStart(4,"0"):d; }
+
+// ===== (R) 全排列展開 =====
+function expandRollFromCell(cell){
+  const s = (cell ?? "").toString().trim();
+  const m = s.match(/^(\d{1,4})\s*\(\s*[Rr]\s*\)$/) || s.match(/^(\d{1,4})\s*[Rr]$/);
+  if(!m) return null;
+  const base = m[1].padStart(4, "0");
+  const arr  = base.split("");
+  const seen = new Set();
+  function permute(a, l){
+    if(l === a.length){ seen.add(a.join("")); return; }
+    const used = new Set();
+    for(let i=l;i<a.length;i++){
+      if(used.has(a[i])) continue;
+      used.add(a[i]);
+      [a[l], a[i]] = [a[i], a[l]];
+      permute(a, l+1);
+      [a[l], a[i]] = [a[i], a[l]];
+    }
+  }
+  permute(arr, 0);
+  return Array.from(seen).sort();
+}
+
+// ===== Legacy detectors (與 v17 相同) =====
+function find4DHeaderIndex(rows){ for(let i=0;i<rows.length;i++){ if(rowText(rows[i]).includes("4d")) return i; } return -1; }
+function isInOutStructure(rows,startIdx){
+  const b=Math.max(0,startIdx-3), e=Math.min(rows.length-1,startIdx+3);
+  let seenIn=false, seenOut=false, big=0, sml=0;
+  for(let r=b;r<=e;r++){
+    const t=rowText(rows[r]);
+    if(t.includes("in")) seenIn=true;
+    if(t.includes("out")) seenOut=true;
+    big+=(t.match(/\bbig\b/g)||[]).length;
+    sml+=(t.match(/\bsmall\b/g)||[]).length;
+  }
+  if((seenOut||seenIn)&&big>=2&&sml>=2) return true;
+  let head=0;
+  for(let r=startIdx;r<=Math.min(startIdx+2,rows.length-1);r++){
+    const t=rowText(rows[r]); if(t.includes("big")&&t.includes("small")) head++;
+  }
+  return head>=2;
+}
+function findSingleNBSHeader(rows){
+  for(let r=0;r<rows.length;r++){
+    const row=rows[r]||[], low=row.map(x=>(x??"").toString().trim().toLowerCase());
+    const n=low.findIndex(x=>x==="number"||x==="num"||x==="no");
+    const b=low.findIndex(x=>x==="big");
+    const s=low.findIndex(x=>x==="small"||x==="sml");
+    if(n!==-1&&b!==-1&&s!==-1) return {rowIndex:r,numCol:n,bigCol:b,smlCol:s};
+  }
+  return null;
+}
+function findMultiBlockNBSHeaders(rows){
+  for(let r=0;r<rows.length;r++){
+    const low=(rows[r]||[]).map(x=>(x??"").toString().trim().toLowerCase());
+    const blocks=[];
+    for(let c=0;c<low.length;c++){
+      if(low[c]==="num"||low[c]==="number"||low[c]==="no"){
+        const b=[1,2,3].map(d=>c+d).find(ci=>low[ci]==="big");
+        const s=[1,2,3,4].map(d=>c+d).find(ci=>low[ci]==="small"||low[ci]==="sml");
+        if(b!=null&&s!=null){ blocks.push({numCol:c,bigCol:b,smlCol:s}); c=Math.max(b,s); }
+      }
+    }
+    if(blocks.length>=2) return {rowIndex:r,blocks};
+  }
+  return null;
+}
+
+// ===== 抽取器（與 v17 相同）=====
+function extractByMappingWithAppender(rows,startRow,mappingList,appendFn){
+  for(let r=startRow+1;r<rows.length;r++){
+    const row=rows[r]||[], joint=rowText(row);
+    if(joint.includes("total")) break;
+    for(const m of mappingList){
+      const rawNumCell = row[m.numCol];
+      const big = toNum(row[m.bigCol]);
+      const sml = toNum(row[m.smlCol]);
+
+      const rolled = expandRollFromCell(rawNumCell);
+      if(rolled && rolled.length){
+        for(const num of rolled){ appendFn(num, big, sml); }
+        continue;
+      }
+      const num = pad4(rawNumCell);
+      if(!num) continue;
+      appendFn(num, big, sml);
+    }
+  }
+}
+
+// ===== Number + OUT block only（排除 "#" 欄；與 v17 相同）=====
+function findNumberWithOutBlock(rows){
+  const HEAD = Math.min(rows.length, 20);
+  const numberCandidates = [];
+  for(let r=0;r<HEAD;r++){
+    const low=(rows[r]||[]).map(x=>(x??"").toString().trim().toLowerCase());
+    const c = low.findIndex(x=>x==="number"||x==="num"||x==="no");
+    if(c!==-1) numberCandidates.push({row:r,col:c});
+  }
+  if(!numberCandidates.length) return null;
+
+  const outHeads = [];
+  for(let r=0;r<HEAD;r++){
+    const low=(rows[r]||[]).map(x=>(x??"").toString().trim().toLowerCase());
+    for(let c=0;c<low.length;c++){
+      if(low[c]==="out"){ outHeads.push({row:r,col:c}); }
+    }
+  }
+  if(!outHeads.length) return null;
+
+  function locateBigSmall(baseRow, startCol){
+    const scan = [
+      (rows[baseRow+1]||[]).map(x=>(x??"").toString().trim().toLowerCase()),
+      (rows[baseRow]  ||[]).map(x=>(x??"").toString().trim().toLowerCase())
+    ];
+    for(const arr of scan){
+      let bigCol=-1, smlCol=-1;
+      for(let c=startCol; c<Math.min(arr.length,startCol+8); c++){
+        if(arr[c]==="big" && bigCol===-1) bigCol=c;
+        if((arr[c]==="small"||arr[c]==="sml") && smlCol===-1) smlCol=c;
+      }
+      if(bigCol!==-1 && smlCol!==-1) return {bigCol,smlCol};
+    }
+    return null;
+  }
+
+  for(const out of outHeads){
+    const bs = locateBigSmall(out.row, out.col);
+    if(!bs) continue;
+
+    let chosenNum = null, bestDist = Infinity;
+    for(const n of numberCandidates){
+      const dist = Math.abs((n.row - out.row)) + Math.abs((n.col - out.col));
+      if(dist < bestDist){ bestDist=dist; chosenNum=n; }
+    }
+    if(!chosenNum) continue;
+
+    let valid=0;
+    for(let r = Math.max(out.row, chosenNum.row)+2; r<Math.min(rows.length, out.row+40); r++){
+      const row = rows[r]||[];
+      const n = pad4(row[chosenNum.col]);
+      const b = row[bs.bigCol], s = row[bs.smlCol];
+      if(n && (b!==undefined || s!==undefined)) valid++;
+      if(valid>=3) break;
+    }
+    if(valid>=3){
+      return { rowIndex: Math.max(out.row, chosenNum.row),
+               numCol: chosenNum.col, bigCol: bs.bigCol, smlCol: bs.smlCol };
+    }
+  }
+  return null;
+}
+
+// ===== 共用流程（與 v17 相同，含 add Source）=====
+async function processExcelFiles(addSource){
+  const input = document.getElementById("excelInput");
+  const files = Array.from(input.files || []);
+  if (!files.length) { alert("Please upload one or more Excel files!"); return; }
+
+  const merged = [];
+  for (const file of files) {
+    const sourceName = file.name;
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(data), { type: "array" });
+
+    for (const sheetName of wb.SheetNames) {
+      const ws = wb.Sheets[sheetName];
+      if (!ws) continue;
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+      if (!rows || !rows.length) continue;
+
+      const appendFn = (num,big,sml)=>{
+        if(addSource) merged.push([num, big, sml, sourceName]);
+        else          merged.push([num, big, sml]);
+      };
+
+      const nOut = findNumberWithOutBlock(rows);
+      if (nOut){
+        extractByMappingWithAppender(rows, nOut.rowIndex, [{ numCol:nOut.numCol, bigCol:nOut.bigCol, smlCol:nOut.smlCol }], appendFn);
+        continue;
+      }
+      const multi = findMultiBlockNBSHeaders(rows);
+      if (multi){
+        extractByMappingWithAppender(rows, multi.rowIndex, multi.blocks, appendFn);
+        continue;
+      }
+      const single = findSingleNBSHeader(rows);
+      if (single){
+        extractByMappingWithAppender(rows, single.rowIndex, [{numCol:single.numCol,bigCol:single.bigCol,smlCol:single.smlCol}], appendFn);
+        continue;
+      }
+      const start4d = find4DHeaderIndex(rows);
+      if (start4d !== -1){
+        if (isInOutStructure(rows, start4d))
+          extractByMappingWithAppender(rows, start4d, [{numCol:0,bigCol:7,smlCol:8}], appendFn);
+        else
+          extractByMappingWithAppender(rows, start4d, [{numCol:0,bigCol:1,smlCol:2}], appendFn);
+      }
+    }
+  }
+
+  if (!merged.length) { alert("No valid data found!"); return; }
+
+  const header = addSource ? ["number","big","small","source"] : ["number","big","small"];
+  const aoa = [header, ...merged];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wbOut = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wbOut, ws, "Merged");
+  const out = XLSX.write(wbOut, { bookType:"xlsx", type:"array" });
+  const fileName = addSource ? "Comparison_Excel_Merged_WithSource.xlsx" : "Comparison_Excel_Merged.xlsx";
+  saveAs(new Blob([out], { type:"application/octet-stream" }), fileName);
+  alert(`✅ Successfully exported ${merged.length} rows${addSource ? " (with Source)" : ""}!`);
+}
+
+// ===== Buttons for Comparison_Excel =====
+document.getElementById("processExcelBtn").addEventListener("click", () => processExcelFiles(false));
+document.getElementById("processExcelWithSourceBtn").addEventListener("click", () => processExcelFiles(true));
+
+// ===== Red_TXT =====
+function processAndDownloadTXT(){
+  const f = document.getElementById('txtInput').files[0];
+  if(!f) return alert('Please select a TXT file first!');
+  const r = new FileReader();
+  r.onload = (e) => {
+    const lines = e.target.result.split(/\r?\n/);
+    const out = lines.map(s => {
+      const m = s.match(/^(\d{1,4})/);
+      return m ? m[1].padStart(4,'0') : '';
+    }).filter(Boolean).join('\n');
+    downloadCRLF('Red.txt', out);
+    alert(`✅ Extracted ${out ? out.split('\n').length : 0} numbers!`);
+  };
+  r.readAsText(f);
+}
+
+// ===== ARA =====
+function processAndDownloadARA(){
+  const f = document.getElementById('lianInput').files[0];
+  if(!f) return alert('Please select a .ara file first!');
+  const r = new FileReader();
+  r.onload = (e) => {
+    const converted = e.target.result.replace(/\*1\|N/g,'*1  |Y'); // 1 後兩個空格
+    downloadCRLF('ARA_converted.ara', converted);
+    alert('✅ Conversion completed and downloaded!');
+  };
+  r.readAsText(f);
+}
+
+// ===== TG_DATE：把每行第 1、2 欄位互換（正向）=====
+function processTGDate(){
+  const f = document.getElementById('tgInput').files[0];
+  if(!f) return alert('Please select a TXT file first!');
+  const r = new FileReader();
+  r.onload = (e) => {
+    const lines = e.target.result.split(/\r?\n/);
+    const convertedLines = lines.map(line => {
+      const s = line.trim();
+      if(!s) return ""; // 保留空行為空字串
+      const parts = s.split(/\s+/);
+      if(parts.length < 2) return s;
+      const reordered = [parts[1], parts[0]].concat(parts.slice(2));
+      return reordered.join(' ');
+    });
+    const outText = convertedLines.join('\n');
+    downloadCRLF('TG_DATE.txt', outText);
+    alert('✅ TG_DATE conversion completed!');
+  };
+  r.readAsText(f);
+}
+
+// ===== TG_DATE Back：再互換一次（反向）=====
+function processTGDateBack(){
+  const f = document.getElementById('tgInput').files[0];
+  if(!f) return alert('Please select a TXT file first!');
+  const r = new FileReader();
+  r.onload = (e) => {
+    const lines = e.target.result.split(/\r?\n/);
+    const convertedLines = lines.map(line => {
+      const s = line.trim();
+      if(!s) return "";
+      const parts = s.split(/\s+/);
+      if(parts.length < 2) return s;
+      const reordered = [parts[1], parts[0]].concat(parts.slice(2));
+      return reordered.join(' ');
+    });
+    const outText = convertedLines.join('\n');
+    downloadCRLF('TG_DATE_Back.txt', outText);
+    alert('✅ TG_DATE Back conversion completed!');
+  };
+  r.readAsText(f);
+}
+
+// ===== Download_All Builder =====
+function classifyAllFileType(fileName) {
+  const noExt = fileName.replace(/\.[^.]+$/,"");
+  const lower = noExt.toLowerCase();
+  if (lower.includes("_ara")) return { type: "ara", name: noExt };
+  if (lower.includes("_tg")) return { type: "tg", name: noExt };
+  if (lower.includes("_key")) return { type: "keyin", name: noExt };
+  return null;
+}
+
+function trimTrailingEmptyLinesSimple(lines) {
+  let end = lines.length;
+  while (end > 0 && lines[end-1].trim() === "") end--;
+  return lines.slice(0, end);
+}
+
+async function buildDownloadAllFromUploads() {
+  const mainInput = document.getElementById("allMainInput");
+  const redInput  = document.getElementById("redfontInput");
+
+  const mainFiles = Array.from(mainInput.files || []);
+  const redFiles  = Array.from(redInput.files  || []);
+
+  if (!mainFiles.length && !redFiles.length) {
+    alert("Please select ARA / TG / KEYIN files, and optionally a redfont file.");
+    return;
+  }
+  if (!mainFiles.length) {
+    alert("Please select at least one ARA / TG / KEYIN file (first upload box).");
+    return;
+  }
+
+  const araSections = [];
+  const tgSections  = [];
+  const keySections = [];
+  let redfontLines  = [];
+
+  for (const file of mainFiles) {
+    const info = classifyAllFileType(file.name);
+    if (!info) continue;
+    const text = await file.text();
+    const lines = text.replace(/\r?\n/g, "\n").split("\n");
+    const trimmed = trimTrailingEmptyLinesSimple(lines);
+    if (!trimmed.length) continue;
+    if (info.type === "ara") {
+      araSections.push({ name: info.name, lines: trimmed });
+    } else if (info.type === "tg") {
+      tgSections.push({ name: info.name, lines: trimmed });
+    } else if (info.type === "keyin") {
+      keySections.push({ name: info.name, lines: trimmed });
+    }
+  }
+
+  if (redFiles.length) {
+    const redFile = redFiles[0];
+    const text = await redFile.text();
+    const lines = text.replace(/\r?\n/g, "\n").split("\n");
+    redfontLines = trimTrailingEmptyLinesSimple(lines);
+  }
+
+  if (!araSections.length && !tgSections.length && !keySections.length && !redfontLines.length) {
+    alert("No valid ARA / TG / KEYIN / redfont content detected!");
+    return;
+  }
+
+  const byName = (a,b) => a.name.localeCompare(b.name);
+  araSections.sort(byName);
+  tgSections.sort(byName);
+  keySections.sort(byName);
+
+  const outLines = [];
+
+  function pushSection(type, sec) {
+    outLines.push("type:" + type + " " + sec.name);
+    outLines.push("line:" + sec.lines.length);
+    for (const line of sec.lines) outLines.push(line);
+    outLines.push("endtype:" + type + " " + sec.name);
+  }
+
+  araSections.forEach(sec => pushSection("ara",   sec));
+  tgSections .forEach(sec => pushSection("tg",    sec));
+  keySections.forEach(sec => pushSection("keyin", sec));
+
+  if (redfontLines.length) {
+    outLines.push("type:redfont");
+    outLines.push("line:" + redfontLines.length);
+    for (const line of redfontLines) outLines.push(line);
+    outLines.push("endtype:redfont");
+  }
+
+  const outText = outLines.join("\n");
+  downloadCRLF("download_all.txt", outText);
+  alert("✅ Built download_all.txt from uploaded files!");
+}
+
+document.getElementById("buildAllBtn").addEventListener("click", () => {
+  buildDownloadAllFromUploads();
+});
+
+// ===== TG_Grouping：沿用 TG 分組工具 v5 的邏輯 =====
+function tgParseLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 4) {
+    return { prefix: parts[0] + " " + parts[1], code: parts[2], marker: parts[3] };
+  }
+  const m = trimmed.match(/^(\S+\s+\S+)\s+(\S+)\s+(\S+)\s*$/);
+  if (m) return { prefix: m[1], code: m[2], marker: m[3] };
+  return null;
+}
+
+function tgCombineSlice(lines, startIdx, count, badLines) {
+  const slice = lines.slice(startIdx, startIdx + count);
+  const parsed = [];
+  for (const raw of slice) {
+    const p = tgParseLine(raw);
+    if (p) parsed.push(p); else badLines.push(raw);
+  }
+  if (parsed.length === 0) return null;
+  const prefix = parsed[0].prefix;
+  const groups = [];
+  const seen = new Map();
+  for (const item of parsed) {
+    const { code, marker } = item;
+    if (!seen.has(marker)) {
+      seen.set(marker, groups.length);
+      groups.push({ marker, codes: [] });
+    }
+    groups[seen.get(marker)].codes.push(code);
+  }
+  const out = [prefix];
+  for (const g of groups) {
+    out.push(...g.codes);
+    out.push(g.marker);
+  }
+  return out.join(" ");
+}
+
+function tgParseRangeStr(rng) {
+  const m = (rng || "").match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!m) throw new Error("Range must be like 7-10 / 范圍必須形如 7-10");
+  const a = parseInt(m[1], 10); const b = parseInt(m[2], 10);
+  if (!(a >= 1 && b >= a)) throw new Error("Invalid range values / 範圍值無效");
+  return [a, b];
+}
+
+async function runTGGrouping() {
+  const fileInput = document.getElementById('tgGroupFile');
+  const rangeInput = document.getElementById('tgGroupRange');
+  const maxGroupsInput = document.getElementById('tgGroupMax');
+  const outArea = document.getElementById('tgGroupOutput');
+  const badArea = document.getElementById('tgGroupBad');
+  const status = document.getElementById('tgGroupStatus');
+  const badCount = document.getElementById('tgGroupBadCount');
+
+  outArea.value = "";
+  badArea.value = "";
+  status.textContent = "";
+  badCount.textContent = "0";
+
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) { status.textContent = "Please upload a TG file / 請先上傳 TG 檔"; return; }
+
+  let minG, maxG;
+  try {
+    [minG, maxG] = tgParseRangeStr(rangeInput.value.trim());
+  } catch (e) {
+    status.textContent = e.message;
+    return;
+  }
+
+  const maxGroups = maxGroupsInput.value ? Math.max(1, parseInt(maxGroupsInput.value, 10)) : null;
+
+  const text = await file.text();
+  const allLines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (!allLines.length) { status.textContent = "File is empty / 檔案內容為空"; return; }
+
+  let i = 0;
+  let gIdx = 0;
+  const results = [];
+  const badLines = [];
+
+  while (i < allLines.length) {
+    if (maxGroups !== null && gIdx >= maxGroups) break;
+    const remaining = allLines.length - i;
+    let groupSize;
+    if (remaining < minG) {
+      groupSize = remaining;
+    } else {
+      groupSize = Math.min(remaining, Math.floor(Math.random() * (maxG - minG + 1)) + minG);
+    }
+    const combined = tgCombineSlice(allLines, i, groupSize, badLines);
+    if (combined) results.push(combined);
+    i += groupSize;
+    gIdx += 1;
+  }
+
+  outArea.value = results.join("\n");
+  badArea.value = badLines.join("\n");
+  badCount.textContent = String(badLines.length);
+  status.textContent = `Total lines 總行數: ${allLines.length} ; Completed 已處理行數: ${i} ; Groups 組數: ${results.length} ; Error 錯誤行: ${badLines.length}`;
+}
+
+function copyTGGroupingOutput() {
+  const out = document.getElementById('tgGroupOutput');
+  out.select();
+  document.execCommand('copy');
+}
+
+function copyTGGroupingBad() {
+  const bad = document.getElementById('tgGroupBad');
+  bad.select();
+  document.execCommand('copy');
+}
+
+function downloadTGGroupingOutput() {
+  const text = document.getElementById('tgGroupOutput').value || "";
+  downloadCRLF("TG_Grouping_Output.txt", text + "\n");
+}
+
+function downloadTGGroupingBad() {
+  const text = document.getElementById('tgGroupBad').value || "";
+  downloadCRLF("TG_Grouping_Errors.txt", text + "\n");
+}
+</script>
+
+</body>
+</html>
